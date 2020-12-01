@@ -15507,6 +15507,303 @@ cr.plugins_.Photon = function(runtime)
 }());
 ;
 ;
+var Photon;
+var Exitgames;
+cr.plugins_.PhotonChat = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var pluginProto = cr.plugins_.PhotonChat.prototype;
+	pluginProto.Type = function(plugin)
+	{
+		this.plugin = plugin;
+		this.runtime = plugin.runtime;
+	};
+	var typeProto = pluginProto.Type.prototype;
+	typeProto.onCreate = function()
+	{
+	};
+	pluginProto.Instance = function(type)
+	{
+		this.type = type;
+		this.runtime = type.runtime;
+	};
+	var instanceProto = pluginProto.Instance.prototype;
+	instanceProto.createChatClient = function()
+	{
+		Exitgames["Common"]["Logger"]["setExceptionHandler"](function(code, message) {
+			self.errorCode = code;
+			self.errorMsg = message;
+			self.runtime.trigger(cr.plugins_.Photon.prototype.cnds.onError, self);
+			return false;
+		});
+		this.chatClient = new Photon["Chat"]["ChatClient"](this.Protocol, this.AppId, this.AppVersion);
+		var self = this;
+		this.chatClient["setLogLevel"](this.LogLevel);
+		this.chatClient["onError"] = function(errorCode, errorMsg) {
+			self.errorCode = errorCode;
+			self.errorMsg = errorMsg;
+			self.runtime.trigger(cr.plugins_.PhotonChat.prototype.cnds.onError, self);
+		};
+		this.chatClient["onStateChange"] = function(state) {
+			self.runtime.trigger(cr.plugins_.PhotonChat.prototype.cnds.onStateChange, self);
+			var ChatClient = Photon["Chat"]["ChatClient"];
+			switch (state) {
+				case ChatClient["ChatState"]["ConnectedToFrontEnd"]:
+					self.runtime.trigger(cr.plugins_.PhotonChat.prototype.cnds.onConnectedToFrontEnd, self);
+					break;
+				default:
+					break;
+			}
+		};
+		this.chatClient["onChatMessages"] = function(channelName, messages) {
+			self.channel = channelName;
+			for (var i = 0; i < messages.length; i++) {
+				var m = messages[i];
+				self.message = m["getContent"]();
+				self.sender = m["getSender"]();
+				self.runtime.trigger(cr.plugins_.PhotonChat.prototype.cnds.onMessage, self);
+				self.runtime.trigger(cr.plugins_.PhotonChat.prototype.cnds.onMessageInChannel, self);
+			}
+		};
+		this.chatClient["onPrivateMessage"] = function (channelName, message) {
+			self.channel = channelName;
+			self.message = message["getContent"]();
+			self.sender = message["getSender"]();
+			self.runtime.trigger(cr.plugins_.PhotonChat.prototype.cnds.onPrivateMessage, self);
+			self.runtime.trigger(cr.plugins_.PhotonChat.prototype.cnds.onPrivateMessageInChannel, self);
+        };
+		this.chatClient["onUserStatusUpdate"] = function (userId, status, gotMessage, statusMessage){
+			self.userStatusUserId = userId;
+			self.userStatus = status;
+			self.userStatusMessageUpdated = gotMessage ? 1 : 0;
+			self.userStatusMessage = statusMessage ? statusMessage : "";
+			self.runtime.trigger(cr.plugins_.PhotonChat.prototype.cnds.onUserStatusUpdate, self);
+		};
+        this.chatClient["onSubscribeResult"] = function (results) {
+			for (var i in results) {
+				self.channel = i;
+				self.result = results[i] ? 1 : 0;
+				self.runtime.trigger(cr.plugins_.PhotonChat.prototype.cnds.onSubscribeResult, self);
+			}
+		};
+		this.chatClient["onUnsubscribeResult"] = function (results) {
+			for (var i in results) {
+				self.channel = i;
+				self.result = results[i] ? 1 : 0;
+				self.runtime.trigger(cr.plugins_.PhotonChat.prototype.cnds.onUnsubscribeResult, self);
+			}
+		};
+	};
+	instanceProto.onCreate = function()
+	{
+		this.AppId = this.properties[0];
+		this.AppVersion = this.properties[1];
+		this.Protocol = ["ws", "wss"][this.properties[2]] == "wss" ? this.Protocol = Photon["ConnectionProtocol"]["Wss"] : Photon["ConnectionProtocol"]["Ws"];
+		this.Region = ["EU", "US", "Asia"][this.properties[3]];
+		this.LogLevel = this.properties[4] + Exitgames["Common"]["Logger"]["Level"]["DEBUG"]; // list starts from DEBUG = 1
+		this.createChatClient();
+	}
+	instanceProto.onDestroy = function ()
+	{
+	};
+	instanceProto.saveToJSON = function ()
+	{
+		return {
+		};
+	};
+	instanceProto.loadFromJSON = function (o)
+	{
+	};
+	instanceProto.draw = function(ctx)
+	{
+	};
+	instanceProto.drawGL = function (glw)
+	{
+	};
+	function Cnds() {}
+	Cnds.prototype.onError 						= function() { return true; };
+	Cnds.prototype.onStateChange 				= function() { return true; };
+	Cnds.prototype.onMessageInChannel 			= function(channel) { return this.channel == channel; };
+	Cnds.prototype.onMessage					= function() { return true; };
+	Cnds.prototype.onPrivateMessageInChannel	= function(channel) { return this.channel == channel; };
+	Cnds.prototype.onPrivateMessage				= function() { return true; };
+	Cnds.prototype.onUserStatusUpdate			= function() { return true; };
+	Cnds.prototype.onSubscribeResult			= function(success) { return !!this.result != !!success; };
+	Cnds.prototype.onUnsubscribeResult			= function(success) { return !!this.result != !!success; };
+	Cnds.prototype.onConnectedToFrontEnd = function() { return true; };
+	Cnds.prototype.isConnectedToNameServer = function ()
+	{
+		return this.chatClient["isConnectedToNameServer"]();
+	};
+	Cnds.prototype.isConnectedToFrontEnd = function ()
+	{
+		return this.chatClient["isConnectedToFrontEnd"]();
+	};
+	pluginProto.cnds = new Cnds();
+	function Acts() {}
+	Acts.prototype.setUserId = function (userId)
+	{
+		this.chatClient["setUserId"](userId);
+	};
+	Acts.prototype.setCustomAuthentication = function (authParameters, authType)
+	{
+		this.chatClient["setCustomAuthentication"](authParameters, authType);
+	};
+	Acts.prototype.setRegion = function (region)
+	{
+		this.Region = region;
+	};
+	Acts.prototype.setAppId = function (appId)
+	{
+		this.AppId = appId;
+	};
+	Acts.prototype.setAppVersion = function (version)
+	{
+		this.AppVersion = version;
+	};
+	Acts.prototype.connect = function ()
+	{
+		if (this.Region)
+			this.chatClient["connectToRegionMaster"](this.Region);
+		else
+			this.chatClient["connectToNameServer"]();
+	};
+	Acts.prototype.disconnect = function ()
+	{
+		this.chatClient["disconnect"]();
+	};
+	Acts.prototype.subscribe = function (channelNames, historyLength, lastIds)
+	{
+		var opt = {}
+		var ids
+		if (historyLength)
+		{
+			opt["historyLength"] = historyLength
+		}
+		if (lastIds)
+		{
+			opt["lastIds"] = lastIds.split(",").map(x => parseInt(x))
+		}
+		this.chatClient["subscribe"](channelNames.split(","), opt);
+	};
+	Acts.prototype.unsubscribe = function (channelNames)
+	{
+		this.chatClient["unsubscribe"](channelNames.split(","));
+	};
+	Acts.prototype.publishMessage = function(channelName, content)
+	{
+		this.chatClient["publishMessage"](channelName, content);
+	};
+	Acts.prototype.sendPrivateMessage = function(userId, content)
+	{
+		this.chatClient["sendPrivateMessage"](userId, content);
+	};
+	Acts.prototype.addFriends = function(userIds)
+	{
+		this.chatClient["addFriends"](userIds.split(","));
+	};
+	Acts.prototype.removeFriends = function (userIds)
+	{
+		this.chatClient["removeFriends"](userIds.split(","));
+	};
+	Acts.prototype.setUserStatus = function(statusOption, status, messageOption, statusMessage)
+	{
+		if (statusOption == 3) {
+			if (status >=0 && status <=2 ) {
+				this.errorCode = 0;
+				this.errorMsg = "Custom status should equal one of reserved values 0, 1, 2";
+				this.runtime.trigger(cr.plugins_.PhotonChat.prototype.cnds.onError, this);
+				return;
+			}
+		}
+		else {
+			status = statusOption;
+		}
+		this.chatClient["setUserStatus"](status, statusMessage, messageOption == 0);
+	};
+	Acts.prototype.reset = function ()
+	{
+		this.chatClient["disconnect"]();
+		this.createChatClient();
+		this.chatClient["logger"]["info"]("Photon chat client reset.");
+	};
+	pluginProto.acts = new Acts();
+	function Exps() {}
+	Exps.prototype.Result = function (ret)
+	{
+		ret.set_int(this.result || 0);
+	};
+	Exps.prototype.ErrorCode = function (ret)
+	{
+		ret.set_int(this.errorCode || 0);
+	};
+	Exps.prototype.ErrorMessage = function (ret)
+	{
+		ret.set_string(this.errorMsg || "");
+	};
+	Exps.prototype.State = function (ret)
+	{
+		ret.set_int(this.chatClient["state"]);
+	};
+	Exps.prototype.StateString = function (ret)
+	{
+		ret.set_string(Photon["Chat"]["ChatClient"]["StateToName"](this.chatClient["state"]));
+	};
+	Exps.prototype.UserId = function (ret)
+	{
+		ret.set_string(this.chatClient["getUserId"]() || "");
+	};
+	Exps.prototype.Channel = function (ret)
+	{
+		ret.set_string(this.channel);
+	};
+	Exps.prototype.Message = function (ret)
+	{
+		ret.set_string(this.message);
+	};
+	Exps.prototype.Sender = function (ret)
+	{
+		ret.set_string(this.sender);
+	};
+	Exps.prototype.UserStatusUserId = function (ret)
+	{
+		ret.set_string(this.userStatusUserId);
+	};
+	Exps.prototype.UserStatus = function (ret)
+	{
+		ret.set_int(this.userStatus);
+	};
+	Exps.prototype.UserStatusString = function (ret)
+	{
+		if (this.userStatus == 0) ret.set_string("Offline");
+		else if (this.userStatus == 1) ret.set_string("Invisible"); // we never receive this status
+		else if (this.userStatus == 2) ret.set_string("Online"); // we never receive this status
+		else if (this.userStatus == 3) ret.set_string("Away"); // we never receive this status
+		else if (this.userStatus == 4) ret.set_string("Dnd"); // we never receive this status
+		else if (this.userStatus == 5) ret.set_string("Lfg"); // we never receive this status
+		else if (this.userStatus == 6) ret.set_string("Playing"); // we never receive this status
+		else ret.set_string("Custom " + this.userStatus);
+	};
+	Exps.prototype.UserStatusMessageUpdated = function (ret)
+	{
+		ret.set_int(this.userStatusMessageUpdated);
+	};
+	Exps.prototype.UserStatusMessage = function (ret)
+	{
+		ret.set_string(this.userStatusMessage);
+	};
+	Exps.prototype.ChannelLastMessageID = function (ret, channelName)
+	{
+		var ch = this.chatClient["getPublicChannels"]()[channelName];
+		ret.set_int(ch ? (ch.getLastId() || 0) : 0);
+	};
+	pluginProto.exps = new Exps();
+}());
+;
+;
 cr.plugins_.Sprite = function(runtime)
 {
 	this.runtime = runtime;
@@ -19792,6 +20089,170 @@ cr.behaviors.EightDir = function(runtime)
 }());
 ;
 ;
+cr.behaviors.Pin = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var behaviorProto = cr.behaviors.Pin.prototype;
+	behaviorProto.Type = function(behavior, objtype)
+	{
+		this.behavior = behavior;
+		this.objtype = objtype;
+		this.runtime = behavior.runtime;
+	};
+	var behtypeProto = behaviorProto.Type.prototype;
+	behtypeProto.onCreate = function()
+	{
+	};
+	behaviorProto.Instance = function(type, inst)
+	{
+		this.type = type;
+		this.behavior = type.behavior;
+		this.inst = inst;				// associated object instance to modify
+		this.runtime = type.runtime;
+	};
+	var behinstProto = behaviorProto.Instance.prototype;
+	behinstProto.onCreate = function()
+	{
+		this.pinObject = null;
+		this.pinObjectUid = -1;		// for loading
+		this.pinAngle = 0;
+		this.pinDist = 0;
+		this.myStartAngle = 0;
+		this.theirStartAngle = 0;
+		this.lastKnownAngle = 0;
+		this.mode = 0;				// 0 = position & angle; 1 = position; 2 = angle; 3 = rope; 4 = bar
+		var self = this;
+		if (!this.recycled)
+		{
+			this.myDestroyCallback = (function(inst) {
+													self.onInstanceDestroyed(inst);
+												});
+		}
+		this.runtime.addDestroyCallback(this.myDestroyCallback);
+	};
+	behinstProto.saveToJSON = function ()
+	{
+		return {
+			"uid": this.pinObject ? this.pinObject.uid : -1,
+			"pa": this.pinAngle,
+			"pd": this.pinDist,
+			"msa": this.myStartAngle,
+			"tsa": this.theirStartAngle,
+			"lka": this.lastKnownAngle,
+			"m": this.mode
+		};
+	};
+	behinstProto.loadFromJSON = function (o)
+	{
+		this.pinObjectUid = o["uid"];		// wait until afterLoad to look up
+		this.pinAngle = o["pa"];
+		this.pinDist = o["pd"];
+		this.myStartAngle = o["msa"];
+		this.theirStartAngle = o["tsa"];
+		this.lastKnownAngle = o["lka"];
+		this.mode = o["m"];
+	};
+	behinstProto.afterLoad = function ()
+	{
+		if (this.pinObjectUid === -1)
+			this.pinObject = null;
+		else
+		{
+			this.pinObject = this.runtime.getObjectByUID(this.pinObjectUid);
+;
+		}
+		this.pinObjectUid = -1;
+	};
+	behinstProto.onInstanceDestroyed = function (inst)
+	{
+		if (this.pinObject == inst)
+			this.pinObject = null;
+	};
+	behinstProto.onDestroy = function()
+	{
+		this.pinObject = null;
+		this.runtime.removeDestroyCallback(this.myDestroyCallback);
+	};
+	behinstProto.tick = function ()
+	{
+	};
+	behinstProto.tick2 = function ()
+	{
+		if (!this.pinObject)
+			return;
+		if (this.lastKnownAngle !== this.inst.angle)
+			this.myStartAngle = cr.clamp_angle(this.myStartAngle + (this.inst.angle - this.lastKnownAngle));
+		var newx = this.inst.x;
+		var newy = this.inst.y;
+		if (this.mode === 3 || this.mode === 4)		// rope mode or bar mode
+		{
+			var dist = cr.distanceTo(this.inst.x, this.inst.y, this.pinObject.x, this.pinObject.y);
+			if ((dist > this.pinDist) || (this.mode === 4 && dist < this.pinDist))
+			{
+				var a = cr.angleTo(this.pinObject.x, this.pinObject.y, this.inst.x, this.inst.y);
+				newx = this.pinObject.x + Math.cos(a) * this.pinDist;
+				newy = this.pinObject.y + Math.sin(a) * this.pinDist;
+			}
+		}
+		else
+		{
+			newx = this.pinObject.x + Math.cos(this.pinObject.angle + this.pinAngle) * this.pinDist;
+			newy = this.pinObject.y + Math.sin(this.pinObject.angle + this.pinAngle) * this.pinDist;
+		}
+		var newangle = cr.clamp_angle(this.myStartAngle + (this.pinObject.angle - this.theirStartAngle));
+		this.lastKnownAngle = newangle;
+		if ((this.mode === 0 || this.mode === 1 || this.mode === 3 || this.mode === 4)
+			&& (this.inst.x !== newx || this.inst.y !== newy))
+		{
+			this.inst.x = newx;
+			this.inst.y = newy;
+			this.inst.set_bbox_changed();
+		}
+		if ((this.mode === 0 || this.mode === 2) && (this.inst.angle !== newangle))
+		{
+			this.inst.angle = newangle;
+			this.inst.set_bbox_changed();
+		}
+	};
+	function Cnds() {};
+	Cnds.prototype.IsPinned = function ()
+	{
+		return !!this.pinObject;
+	};
+	behaviorProto.cnds = new Cnds();
+	function Acts() {};
+	Acts.prototype.Pin = function (obj, mode_)
+	{
+		if (!obj)
+			return;
+		var otherinst = obj.getFirstPicked(this.inst);
+		if (!otherinst)
+			return;
+		this.pinObject = otherinst;
+		this.pinAngle = cr.angleTo(otherinst.x, otherinst.y, this.inst.x, this.inst.y) - otherinst.angle;
+		this.pinDist = cr.distanceTo(otherinst.x, otherinst.y, this.inst.x, this.inst.y);
+		this.myStartAngle = this.inst.angle;
+		this.lastKnownAngle = this.inst.angle;
+		this.theirStartAngle = otherinst.angle;
+		this.mode = mode_;
+	};
+	Acts.prototype.Unpin = function ()
+	{
+		this.pinObject = null;
+	};
+	behaviorProto.acts = new Acts();
+	function Exps() {};
+	Exps.prototype.PinnedUID = function (ret)
+	{
+		ret.set_int(this.pinObject ? this.pinObject.uid : -1);
+	};
+	behaviorProto.exps = new Exps();
+}());
+;
+;
 cr.behaviors.Timer = function(runtime)
 {
 	this.runtime = runtime;
@@ -19995,6 +20456,7 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Photon,
 	cr.plugins_.Text,
 	cr.plugins_.Sprite,
+	cr.plugins_.PhotonChat,
 	cr.plugins_.ValerypopoffJSPlugin,
 	cr.plugins_.TextBox,
 	cr.plugins_.TiledBg,
@@ -20002,6 +20464,7 @@ cr.getObjectRefTable = function () { return [
 	cr.behaviors.Timer,
 	cr.behaviors.solid,
 	cr.behaviors.Bullet,
+	cr.behaviors.Pin,
 	cr.system_object.prototype.cnds.IsGroupActive,
 	cr.system_object.prototype.cnds.OnLayoutStart,
 	cr.plugins_.Function.prototype.acts.CallFunction,
@@ -20020,6 +20483,9 @@ cr.getObjectRefTable = function () { return [
 	cr.system_object.prototype.exps.str,
 	cr.plugins_.Arr.prototype.cnds.CompareX,
 	cr.plugins_.Photon.prototype.acts.connect,
+	cr.plugins_.PhotonChat.prototype.acts.connect,
+	cr.plugins_.PhotonChat.prototype.cnds.isConnectedToFrontEnd,
+	cr.plugins_.PhotonChat.prototype.acts.subscribe,
 	cr.plugins_.Photon.prototype.cnds.onJoinedLobby,
 	cr.plugins_.Photon.prototype.acts.joinRoom,
 	cr.plugins_.Photon.prototype.cnds.onActorJoin,
@@ -20042,9 +20508,13 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Photon.prototype.exps.EventData,
 	cr.plugins_.Sprite.prototype.cnds.CompareInstanceVar,
 	cr.system_object.prototype.acts.CreateObject,
+	cr.plugins_.Sprite.prototype.exps.ImagePointX,
+	cr.plugins_.Sprite.prototype.exps.ImagePointY,
 	cr.plugins_.Sprite.prototype.acts.MoveToBottom,
 	cr.plugins_.Sprite.prototype.acts.SetInstanceVar,
 	cr.plugins_.Sprite.prototype.acts.SetAnimFrame,
+	cr.behaviors.Pin.prototype.acts.Pin,
+	cr.plugins_.Sprite.prototype.acts.SetWidth,
 	cr.plugins_.Photon.prototype.acts.disconnect,
 	cr.system_object.prototype.cnds.CompareTime,
 	cr.system_object.prototype.cnds.Every,
@@ -20058,6 +20528,21 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Arr.prototype.acts.Push,
 	cr.plugins_.Arr.prototype.acts.SetXY,
 	cr.system_object.prototype.acts.SetVar,
+	cr.plugins_.Keyboard.prototype.cnds.OnKey,
+	cr.plugins_.TextBox.prototype.cnds.IsBoolInstanceVarSet,
+	cr.system_object.prototype.exps.left,
+	cr.plugins_.PhotonChat.prototype.exps.UserId,
+	cr.plugins_.PhotonChat.prototype.acts.setUserId,
+	cr.plugins_.PhotonChat.prototype.acts.publishMessage,
+	cr.plugins_.TextBox.prototype.exps.Text,
+	cr.plugins_.TextBox.prototype.acts.SetBoolInstanceVar,
+	cr.plugins_.TextBox.prototype.acts.SetEnabled,
+	cr.plugins_.TextBox.prototype.acts.SetText,
+	cr.plugins_.TextBox.prototype.acts.SetFocus,
+	cr.plugins_.PhotonChat.prototype.cnds.onMessage,
+	cr.system_object.prototype.exps.newline,
+	cr.plugins_.PhotonChat.prototype.exps.Message,
+	cr.plugins_.TextBox.prototype.acts.ScrollToBottom,
 	cr.plugins_.Keyboard.prototype.cnds.OnAnyKey,
 	cr.plugins_.Keyboard.prototype.exps.StringFromKeyCode,
 	cr.plugins_.Keyboard.prototype.exps.LastKeyCode,
@@ -20106,9 +20591,5 @@ cr.getObjectRefTable = function () { return [
 	cr.system_object.prototype.cnds.CompareBetween,
 	cr.plugins_.Sprite.prototype.acts.SetX,
 	cr.system_object.prototype.exps.abs,
-	cr.plugins_.Sprite.prototype.acts.SetY,
-	cr.plugins_.TextBox.prototype.acts.SetText,
-	cr.plugins_.TextBox.prototype.exps.Text,
-	cr.system_object.prototype.exps.newline,
-	cr.plugins_.TextBox.prototype.acts.ScrollToBottom
+	cr.plugins_.Sprite.prototype.acts.SetY
 ];};
